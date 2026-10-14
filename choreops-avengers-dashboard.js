@@ -101,10 +101,12 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         const val = String(state.state ?? "unknown");
         const friendly = this._friendly(entityId, state);
         const name = friendly
-          .replace(new RegExp("^" + profile.name.replace(/[.*+?^${}()|[\]\\]/g, "\\      const statusItems = statuses.map(({ entityId, state }) => {
-        const val = String(state.state ?? "unknown");
+          .replace(profile.name + " (ChoreOps) ", "")
+          .replace("Aufgabenstatus - ", "")
+          .replace("Aufgabenstatus: ", "")
+          .replace("ChoreOps - ", "");
         return {
-          name: this._friendly(entityId, state).replace(/^Aufgabenstatus\s*[-:]?\s*/i, ""),
+          name: name || entityId.split(".").pop().replace(profile.id + "_choreops_", "").replaceAll("_", " "),
           val,
           pending: /pend|offen|unknown|unavailable/i.test(val),
         };
