@@ -104,6 +104,9 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot || !this._config) return;
+    // Preserve the disclosure state when Home Assistant refreshes entity data.
+    const previousActions = this.shadowRoot.querySelector("details.actions");
+    const actionsWereOpen = previousActions ? previousActions.open : Boolean(this._actionsOpen);
     const profiles = (this._config.profiles || DEFAULT_PROFILES).map(p => ({
       id: String(p.id || "").toLowerCase(),
       name: p.name || p.id,
@@ -263,6 +266,16 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         <div class="toast" role="status"></div>
         <footer class="footer"><span>SHIELD.NET · CHOREOPS VERBUNDEN</span><span>FAMILIENZENTRALE · v1.0.0</span></footer>
       </div>`;
+
+    const actionsDetails = this.shadowRoot.querySelector("details.actions");
+    if (actionsDetails) {
+      actionsDetails.open = actionsWereOpen;
+      actionsDetails.addEventListener("toggle", () => {
+        this._actionsOpen = actionsDetails.open;
+      });
+    } else {
+      this._actionsOpen = false;
+    }
 
     this.shadowRoot.querySelectorAll("button[data-entity]").forEach(button => {
       button.addEventListener("click", async () => {
