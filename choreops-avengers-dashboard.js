@@ -1,5 +1,12 @@
 /* ChoreOps Avengers Dashboard — standalone Home Assistant Lovelace card */
 const CARD_TAG = "choreops-avengers-dashboard";
+const HERO_THEMES = {
+  nele:    { name: "SPIDER-MAN", icon: "🕷️", color: "#e54b55", glow: "rgba(229,75,85,.20)" },
+  lisa:    { name: "EISKÖNIGIN", icon: "❄️", color: "#79d9ff", glow: "rgba(121,217,255,.20)" },
+  leonie:  { name: "HULK", icon: "💚", color: "#64dc8b", glow: "rgba(100,220,139,.18)" },
+  jenny:   { name: "BLACK WIDOW", icon: "🕸️", color: "#f07883", glow: "rgba(240,120,131,.18)" },
+  patrick: { name: "IRON MAN", icon: "🤖", color: "#ffb454", glow: "rgba(255,180,84,.18)" },
+};
 const DEFAULT_PROFILES = [
   { id: "patrick", name: "Patrick", role: "Teamleitung" },
   { id: "jenny", name: "Jenny", role: "Mama" },
@@ -124,6 +131,8 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
     });
     const profileCards = profileData.map(item => {
       const { profile, tasks, points, badge, actions, pointButtons, statusItems, score } = item;
+      const hero = HERO_THEMES[profile.id] || { name: "TEAM AVENGERS", icon: "★", color: "#1aa5d2", glow: "rgba(26,165,210,.16)" };
+      const heroStyle = "--hero-color:" + hero.color + ";--hero-glow:" + hero.glow + ";";
       const pendingCount = statusItems.filter(status => status.pending).length;
       const otherCount = statusItems.length - pendingCount;
       const progress = Math.max(0, Math.min(100, Math.round(score / maxScore * 100)));
@@ -143,7 +152,7 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         return `<button class="action ${danger ? "danger" : positive ? "positive" : ""}" data-entity="${this._escape(entityId)}" data-label="${this._escape(name)}">${this._escape(name.replace(/^[^–-]+[–-]\s*/, ""))}</button>`;
       }).join("")}</div></div>`).join("");
       return `<article class="profile">
-        <div class="profile-top"><div class="avatar">${this._escape(profile.name.slice(0, 1).toUpperCase())}</div><div class="profile-title"><h3>${this._escape(profile.name)}</h3><span>${this._escape(profile.role)}</span></div><div class="rank-chip">#${rankById[profile.id] || "—"}<small>RANG</small></div></div>
+        <div class="profile-top" style="${heroStyle}"><div class="avatar hero-avatar" title="${this._escape(hero.name)}">${this._escape(hero.icon)}</div><div class="profile-title"><h3>${this._escape(profile.name)}</h3><span>${this._escape(profile.role)}</span><div class="hero-title"><span class="hero-dot"></span>${this._escape(hero.name)}</div></div><div class="rank-chip">#${rankById[profile.id] || "—"}<small>RANG</small></div></div>
         <div class="stats"><div class="stat"><span class="stat-icon">✦</span><strong>${this._escape(this._num(points?.state ?? "—"))}</strong><small>Punkte</small></div><div class="stat"><span class="stat-icon">⬡</span><strong class="badge-value">${this._escape(badgeValue)}</strong><small>Abzeichen</small></div></div>
         <div class="score-progress"><div class="progress-caption"><span>PUNKTE-FORTSCHRITT</span><strong>${progress}%</strong></div><div class="progress-track"><span style="width:${progress}%"></span></div><div class="progress-note">Relativer Punktestand innerhalb der Familie</div></div>
         <div class="mission-summary"><div><strong>${statusItems.length}</strong><span>Status</span></div><div><strong>${pendingCount}</strong><span>Offen / prüfen</span></div><div><strong>${otherCount}</strong><span>Andere Status</span></div></div>
@@ -197,7 +206,7 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         .alert-row { display:flex; gap:7px; align-items:flex-start; padding:7px 0; border-bottom:1px solid #173247; } .alert-row div { min-width:0; } .alert-row strong { display:block; color:#d7e9f3; font-size:10px; overflow-wrap:anywhere; } .alert-row div span { display:block; color:#729bb2; font-size:9px; margin-top:3px; }
         .profiles { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
         .profile { min-width:0; padding:12px; border:1px solid #1a3b51; border-radius:10px; background:linear-gradient(155deg,#0c1b2a,#08121e 70%); box-shadow:inset 0 1px #ffffff05; }
-        .profile-top { display:flex; align-items:center; gap:9px; min-width:0; } .avatar { display:grid; place-items:center; width:35px; height:35px; flex:0 0 35px; border:1px solid #1aa5d2; border-radius:50%; color:#9be9ff; background:#0a2b41; font-size:16px; font-weight:800; }
+        .profile-top { display:flex; align-items:center; gap:9px; min-width:0; } .avatar { display:grid; place-items:center; width:42px; height:42px; flex:0 0 42px; border:1px solid var(--hero-color,#1aa5d2); border-radius:50%; color:var(--hero-color,#9be9ff); background:radial-gradient(circle,var(--hero-glow,rgba(26,165,210,.16)),#071421 72%); box-shadow:0 0 14px var(--hero-glow,rgba(26,165,210,.16)),inset 0 0 10px var(--hero-glow,rgba(26,165,210,.16)); font-size:22px; } .hero-title { display:flex; align-items:center; gap:5px; margin-top:5px; color:var(--hero-color,#66c8ef); font-size:8px; letter-spacing:1.2px; font-weight:800; } .hero-title .hero-dot { width:5px; height:5px; flex:0 0 5px; border-radius:50%; background:var(--hero-color,#1aa5d2); box-shadow:0 0 7px var(--hero-color,#1aa5d2); }
         .profile-title { min-width:0; flex:1; } h3 { margin:0 0 3px; font-size:14px; color:#f0f8ff; } .profile-title span { color:#79a6c0; font-size:10px; }
         .rank-chip { color:#80e3ff; font-size:18px; font-weight:800; text-align:right; } .rank-chip small { display:block; color:#648ca5; font-size:8px; font-weight:600; }
         .stats { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin:10px 0; } .stat { position:relative; padding:9px; background:#071421; border:1px solid #173247; border-radius:7px; min-width:0; }
