@@ -1,11 +1,26 @@
 /* ChoreOps Avengers Dashboard — standalone Home Assistant Lovelace card */
 const CARD_TAG = "choreops-avengers-dashboard";
 const HERO_THEMES = {
-  nele:    { name: "SPIDER-MAN", icon: "🕷️", color: "#e54b55", glow: "rgba(229,75,85,.20)" },
-  lisa:    { name: "EISKÖNIGIN", icon: "❄️", color: "#79d9ff", glow: "rgba(121,217,255,.20)" },
-  leonie:  { name: "HULK", icon: "💚", color: "#64dc8b", glow: "rgba(100,220,139,.18)" },
-  jenny:   { name: "BLACK WIDOW", icon: "🕸️", color: "#f07883", glow: "rgba(240,120,131,.18)" },
-  patrick: { name: "IRON MAN", icon: "🤖", color: "#ffb454", glow: "rgba(255,180,84,.18)" },
+  nele: {
+    name: "SPIDER-MAN", color: "#e54b55", glow: "rgba(229,75,85,.20)",
+    svg: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 5 35 10 40 21 37 34 24 43 11 34 8 21 13 10Z" fill="#a92031" stroke="#ff7b84" stroke-width="1.6"/><path d="M24 6V42M10 15 38 33M38 15 10 33M13 10 35 38M35 10 13 38" fill="none" stroke="#ffb1b5" stroke-width="1.1" opacity=".8"/><path d="M13 20 21 22 18 28ZM35 20 27 22 30 28Z" fill="#f4fbff" stroke="#172235" stroke-width="1.5"/></svg>'
+  },
+  lisa: {
+    name: "EISKÖNIGIN", color: "#79d9ff", glow: "rgba(121,217,255,.20)",
+    svg: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4 28 15 39 9 34 20 45 24 34 28 39 39 28 33 24 44 20 33 9 39 14 28 3 24 14 20 9 9 20 15Z" fill="#bff4ff" stroke="#e9fcff" stroke-width="1.2"/><path d="M24 11V37M11 24H37M15 15 33 33M33 15 15 33" stroke="#3f9ecb" stroke-width="1.8" stroke-linecap="round"/><circle cx="24" cy="24" r="4" fill="#f8ffff"/></svg>'
+  },
+  leonie: {
+    name: "HULK", color: "#64dc8b", glow: "rgba(100,220,139,.18)",
+    svg: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 22 13 12 20 9 24 14 28 9 35 12 38 22 35 37 29 41 24 36 19 41 13 37Z" fill="#24864b" stroke="#8effa8" stroke-width="1.7"/><path d="M13 17 20 19 18 24 12 23ZM35 17 28 19 30 24 36 23Z" fill="#eaffef"/><path d="M17 29 22 31 26 31 31 29 29 35 24 37 19 35Z" fill="#173d29"/><path d="M9 28 14 31M39 28 34 31" stroke="#a5ffb6" stroke-width="2.5" stroke-linecap="round"/></svg>'
+  },
+  jenny: {
+    name: "BLACK WIDOW", color: "#f07883", glow: "rgba(240,120,131,.18)",
+    svg: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 6 29 17 40 12 34 23 42 30 29 30 24 42 19 30 6 30 14 23 8 12 19 17Z" fill="#5a1828" stroke="#ff8797" stroke-width="1.7"/><path d="M24 10V38M12 17 36 31M36 17 12 31" stroke="#ffc0c8" stroke-width="1.2" fill="none"/><path d="M16 23Q24 15 32 23Q24 31 16 23Z" fill="#ff8d9c"/><circle cx="24" cy="23" r="3" fill="#26101a"/></svg>'
+  },
+  patrick: {
+    name: "IRON MAN", color: "#ffb454", glow: "rgba(255,180,84,.18)",
+    svg: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M15 6 33 6 41 17 37 35 24 43 11 35 7 17Z" fill="#a92c32" stroke="#ffc36d" stroke-width="1.7"/><path d="M15 10 24 14 33 10 35 22 30 34 24 38 18 34 13 22Z" fill="#e84c42" stroke="#ffb454" stroke-width="1.2"/><path d="M13 20 21 22 18 26 12 25ZM35 20 27 22 30 26 36 25Z" fill="#9ef2ff" stroke="#e7fcff" stroke-width="1"/><path d="M20 29 24 27 28 29 26 34 22 34Z" fill="#ffdc87"/><circle cx="24" cy="30" r="2" fill="#fff4bc"/></svg>'
+  }
 };
 const DEFAULT_PROFILES = [
   { id: "patrick", name: "Patrick", role: "Teamleitung" },
@@ -131,7 +146,7 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
     });
     const profileCards = profileData.map(item => {
       const { profile, tasks, points, badge, actions, pointButtons, statusItems, score } = item;
-      const hero = HERO_THEMES[profile.id] || { name: "TEAM AVENGERS", icon: "★", color: "#1aa5d2", glow: "rgba(26,165,210,.16)" };
+      const hero = HERO_THEMES[profile.id] || { name: "TEAM AVENGERS", svg: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4 29 18 44 18 32 27 36 42 24 33 12 42 16 27 4 18 19 18Z" fill="#9be9ff"/></svg>', color: "#1aa5d2", glow: "rgba(26,165,210,.16)" };
       const heroStyle = "--hero-color:" + hero.color + ";--hero-glow:" + hero.glow + ";";
       const pendingCount = statusItems.filter(status => status.pending).length;
       const otherCount = statusItems.length - pendingCount;
@@ -152,7 +167,7 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         return `<button class="action ${danger ? "danger" : positive ? "positive" : ""}" data-entity="${this._escape(entityId)}" data-label="${this._escape(name)}">${this._escape(name.replace(/^[^–-]+[–-]\s*/, ""))}</button>`;
       }).join("")}</div></div>`).join("");
       return `<article class="profile">
-        <div class="profile-top" style="${heroStyle}"><div class="avatar hero-avatar" title="${this._escape(hero.name)}">${this._escape(hero.icon)}</div><div class="profile-title"><h3>${this._escape(profile.name)}</h3><span>${this._escape(profile.role)}</span><div class="hero-title"><span class="hero-dot"></span>${this._escape(hero.name)}</div></div><div class="rank-chip">#${rankById[profile.id] || "—"}<small>RANG</small></div></div>
+        <div class="profile-top" style="${heroStyle}"><div class="avatar hero-avatar" title="${this._escape(hero.name)}">${hero.svg}</div><div class="profile-title"><h3>${this._escape(profile.name)}</h3><span>${this._escape(profile.role)}</span><div class="hero-title"><span class="hero-dot"></span>${this._escape(hero.name)}</div></div><div class="rank-chip">#${rankById[profile.id] || "—"}<small>RANG</small></div></div>
         <div class="stats"><div class="stat"><span class="stat-icon">✦</span><strong>${this._escape(this._num(points?.state ?? "—"))}</strong><small>Punkte</small></div><div class="stat"><span class="stat-icon">⬡</span><strong class="badge-value">${this._escape(badgeValue)}</strong><small>Abzeichen</small></div></div>
         <div class="score-progress"><div class="progress-caption"><span>PUNKTE-FORTSCHRITT</span><strong>${progress}%</strong></div><div class="progress-track"><span style="width:${progress}%"></span></div><div class="progress-note">Relativer Punktestand innerhalb der Familie</div></div>
         <div class="mission-summary"><div><strong>${statusItems.length}</strong><span>Status</span></div><div><strong>${pendingCount}</strong><span>Offen / prüfen</span></div><div><strong>${otherCount}</strong><span>Andere Status</span></div></div>
@@ -206,7 +221,7 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         .alert-row { display:flex; gap:7px; align-items:flex-start; padding:7px 0; border-bottom:1px solid #173247; } .alert-row div { min-width:0; } .alert-row strong { display:block; color:#d7e9f3; font-size:10px; overflow-wrap:anywhere; } .alert-row div span { display:block; color:#729bb2; font-size:9px; margin-top:3px; }
         .profiles { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
         .profile { min-width:0; padding:12px; border:1px solid #1a3b51; border-radius:10px; background:linear-gradient(155deg,#0c1b2a,#08121e 70%); box-shadow:inset 0 1px #ffffff05; }
-        .profile-top { display:flex; align-items:center; gap:9px; min-width:0; } .avatar { display:grid; place-items:center; width:42px; height:42px; flex:0 0 42px; border:1px solid var(--hero-color,#1aa5d2); border-radius:50%; color:var(--hero-color,#9be9ff); background:radial-gradient(circle,var(--hero-glow,rgba(26,165,210,.16)),#071421 72%); box-shadow:0 0 14px var(--hero-glow,rgba(26,165,210,.16)),inset 0 0 10px var(--hero-glow,rgba(26,165,210,.16)); font-size:22px; } .hero-title { display:flex; align-items:center; gap:5px; margin-top:5px; color:var(--hero-color,#66c8ef); font-size:8px; letter-spacing:1.2px; font-weight:800; } .hero-title .hero-dot { width:5px; height:5px; flex:0 0 5px; border-radius:50%; background:var(--hero-color,#1aa5d2); box-shadow:0 0 7px var(--hero-color,#1aa5d2); }
+        .profile-top { display:flex; align-items:center; gap:9px; min-width:0; } .avatar { display:grid; place-items:center; width:42px; height:42px; flex:0 0 42px; border:1px solid var(--hero-color,#1aa5d2); border-radius:50%; color:var(--hero-color,#9be9ff); background:radial-gradient(circle,var(--hero-glow,rgba(26,165,210,.16)),#071421 72%); box-shadow:0 0 14px var(--hero-glow,rgba(26,165,210,.16)),inset 0 0 10px var(--hero-glow,rgba(26,165,210,.16)); font-size:22px; overflow:hidden; } .avatar svg { display:block; width:100%; height:100%; padding:6px; box-sizing:border-box; filter:drop-shadow(0 0 3px var(--hero-glow,transparent)); } .hero-title { display:flex; align-items:center; gap:5px; margin-top:5px; color:var(--hero-color,#66c8ef); font-size:8px; letter-spacing:1.2px; font-weight:800; } .hero-title .hero-dot { width:5px; height:5px; flex:0 0 5px; border-radius:50%; background:var(--hero-color,#1aa5d2); box-shadow:0 0 7px var(--hero-color,#1aa5d2); }
         .profile-title { min-width:0; flex:1; } h3 { margin:0 0 3px; font-size:14px; color:#f0f8ff; } .profile-title span { color:#79a6c0; font-size:10px; }
         .rank-chip { color:#80e3ff; font-size:18px; font-weight:800; text-align:right; } .rank-chip small { display:block; color:#648ca5; font-size:8px; font-weight:600; }
         .stats { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin:10px 0; } .stat { position:relative; padding:9px; background:#071421; border:1px solid #173247; border-radius:7px; min-width:0; }
