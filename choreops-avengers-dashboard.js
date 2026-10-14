@@ -114,19 +114,6 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
       return { profile, tasks, points, badge, actions, pointButtons, statusItems, score: Number.isFinite(score) ? score : 0 };
     });
     const maxScore = Math.max(1, ...profileData.map(item => item.score));
-    const ranked = [...profileData].sort((a, b) => b.score - a.score);
-    const rankById = Object.fromEntries(ranked.map((item, index) => [item.profile.id, index + 1]));") + "\\s*\\(ChoreOps\\)\\s*", "i"), "")
-          .replace(/^Aufgabenstatus\s*[-:]?\s*/i, "")
-          .replace(/^ChoreOps\s*[-:]?\s*/i, "");
-        return {
-          name: name || entityId.split(".").pop().replace(new RegExp("^" + profile.id + "_choreops_"), "").replaceAll("_", " "),
-          val,
-          pending: /pend|offen|unknown|unavailable/i.test(val),
-        };
-      });
-      return { profile, tasks, points, badge, actions, pointButtons, statusItems, score: Number.isFinite(score) ? score : 0 };
-    });
-    const maxScore = Math.max(1, ...profileData.map(item => item.score));
     const rankById = {};
     let rank = 0;
     let previousScore = null;
