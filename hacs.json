@@ -1,0 +1,7 @@
+{
+  "name": "ChoreOps Avengers Dashboard",
+  "content_in_root": true,
+  "filename": "choreops-avengers-dashboard.js",
+  "render_readme": true,
+  "homeassistant": "2024.6.0"
+}
