@@ -136,10 +136,17 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
           .replace("Aufgabenstatus - ", "")
           .replace("Aufgabenstatus: ", "")
           .replace("ChoreOps - ", "");
+        const normalized = val.trim().toLowerCase();
+        const unavailable = /^(unknown|unavailable|none|null|n\/a|nicht verfügbar|nicht_verfügbar|—|-)$/.test(normalized);
+        const done = !unavailable && /(erledigt|abgeschlossen|completed|complete|done|fertig|genehmigt|approved|^true$|^on$|^yes$|^ja$)/i.test(normalized);
+        const pending = !unavailable && !done && /(offen|pending|ausstehend|todo|to do|in arbeit|in bearbeitung|wartet|started|^false$|^off$|^no$|^nein$)/i.test(normalized);
+        const statusType = unavailable ? "unavailable" : done ? "done" : pending ? "pending" : "other";
+        const statusLabel = unavailable ? "Nicht verfügbar" : done ? "Erledigt" : pending ? "Offen" : val;
         return {
           name: name || entityId.split(".").pop().replace(profile.id + "_choreops_", "").replaceAll("_", " "),
           val,
-          pending: /pend|offen|unknown|unavailable/i.test(val),
+          statusType,
+          statusLabel,
         };
       });
       return { profile, tasks, points, badge, actions, pointButtons, statusItems, score: Number.isFinite(score) ? score : 0 };
@@ -157,12 +164,14 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
       const { profile, tasks, points, badge, actions, pointButtons, statusItems, score } = item;
       const hero = HERO_THEMES[profile.id] || { name: "TEAM AVENGERS", svg: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4 29 18 44 18 32 27 36 42 24 33 12 42 16 27 4 18 19 18Z" fill="#9be9ff"/></svg>', color: "#1aa5d2", glow: "rgba(26,165,210,.16)" };
       const heroStyle = "--hero-color:" + hero.color + ";--hero-glow:" + hero.glow + ";";
-      const pendingCount = statusItems.filter(status => status.pending).length;
-      const otherCount = statusItems.length - pendingCount;
+      const pendingCount = statusItems.filter(status => status.statusType === "pending").length;
+      const doneCount = statusItems.filter(status => status.statusType === "done").length;
+      const unavailableCount = statusItems.filter(status => status.statusType === "unavailable").length;
+      const otherCount = statusItems.filter(status => status.statusType === "other").length;
       const progress = Math.max(0, Math.min(100, Math.round(score / maxScore * 100)));
       const badgeValue = badge?.state && !["unknown", "unavailable", "None", "none", ""].includes(String(badge.state)) ? String(badge.state) : "Noch keine";
       const statusHtml = statusItems.length
-        ? statusItems.slice(0, 5).map(status => `<div class="mission-row"><span class="status-dot ${status.pending ? "pending" : "done"}"></span><span class="mission-name">${this._escape(status.name)}</span><span class="mission-state ${status.pending ? "state-pending" : ""}">${this._escape(status.val)}</span></div>`).join("")
+        ? statusItems.slice(0, 5).map(status => `<div class="mission-row"><span class="status-dot ${status.statusType}"></span><span class="mission-name">${this._escape(status.name)}</span><span class="mission-state state-${status.statusType}">${this._escape(status.statusLabel)}</span></div>`).join("")
         : `<div class="empty">Keine Aufgabenstatus-Entitäten gefunden.</div>`;
       const groups = [
         { title: "Aufgaben", items: actions },
@@ -171,15 +180,18 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
       const controls = groups.map(group => `<div class="action-group"><div class="action-group-title">${this._escape(group.title)}</div><div class="action-list">${group.items.slice(0, 12).map(({ entityId, state }) => {
         const name = this._friendly(entityId, state);
         const lower = entityId.toLowerCase();
-        const danger = /ablehnen|strafe|verringern/.test(lower);
-        const positive = /genehmigen|beanspruchen|erhöhen/.test(lower);
-        return `<button class="action ${danger ? "danger" : positive ? "positive" : ""}" data-entity="${this._escape(entityId)}" data-label="${this._escape(name)}">${this._escape(name.replace(/^[^–-]+[–-]\s*/, ""))}</button>`;
+        const isPointsAction = group.title === "Punkte";
+        const danger = /ablehnen|strafe|verringern|abziehen|löschen|loeschen|entfernen|zurücksetzen|reset|delete|minus|subtract|remove/.test(lower);
+        const positive = /genehmigen|beanspruchen|erhöhen|hinzufügen|add|plus/.test(lower);
+        const needsConfirm = danger || isPointsAction || /genehmigen|ablehnen|beanspruchen|verringern|erhöhen|abziehen/.test(lower);
+        const safeLabel = name.replace(/^[^–-]+[–-]\s*/, "");
+        return `<button class="action ${danger ? "danger" : positive ? "positive" : ""} ${needsConfirm ? "confirm-action" : ""}" data-entity="${this._escape(entityId)}" data-label="${this._escape(safeLabel)}" data-confirm="${needsConfirm ? "true" : "false"}" aria-label="${this._escape((danger ? "Achtung: " : "") + safeLabel)}">${danger ? "⚠ " : isPointsAction ? "✦ " : ""}${this._escape(safeLabel)}</button>`;
       }).join("")}</div></div>`).join("");
       return `<article class="profile">
         <div class="profile-top" style="${heroStyle}"><div class="avatar hero-avatar" title="${this._escape(hero.name)}">${hero.svg}</div><div class="profile-title"><h3>${this._escape(profile.name)}</h3><span>${this._escape(profile.role)}</span><div class="hero-title"><span class="hero-dot"></span>${this._escape(hero.name)}</div></div><div class="rank-chip">#${rankById[profile.id] || "—"}<small>RANG</small></div></div>
         <div class="stats"><div class="stat"><span class="stat-icon">✦</span><strong>${this._escape(this._num(points?.state ?? "—"))}</strong><small>Punkte</small></div><div class="stat"><span class="stat-icon">⬡</span><strong class="badge-value">${this._escape(badgeValue)}</strong><small>Abzeichen</small></div></div>
         <div class="score-progress"><div class="progress-caption"><span>PUNKTE-FORTSCHRITT</span><strong>${progress}%</strong></div><div class="progress-track"><span style="width:${progress}%"></span></div><div class="progress-note">Relativer Punktestand innerhalb der Familie</div></div>
-        <div class="mission-summary"><div><strong>${statusItems.length}</strong><span>Status</span></div><div><strong>${pendingCount}</strong><span>Offen / prüfen</span></div><div><strong>${otherCount}</strong><span>Andere Status</span></div></div>
+        <div class="mission-summary"><div><strong>${pendingCount}</strong><span>Offen</span></div><div><strong>${doneCount}</strong><span>Erledigt</span></div><div><strong>${unavailableCount + otherCount}</strong><span>Unklar / offline</span></div></div>
         <div class="section-label">MISSIONEN · STATUS</div><div class="missions">${statusHtml}</div>
         ${statusItems.length > 5 ? `<div class="more-status">+${statusItems.length - 5} weitere Statussensoren</div>` : ""}
         ${controls ? `<details class="actions" data-profile-actions="${this._escape(profile.id)}"><summary>Missionen & Punkte verwalten <span>${actions.length + pointButtons.length} Aktionen</span></summary>${controls}</details>` : ""}
@@ -187,7 +199,12 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
     }).join("");
     const openMissions = profiles.reduce((sum, p) => {
       const statuses = this._entities(`${p.id}_choreops_aufgabenstatus_`, "sensor");
-      return sum + statuses.filter(({ state }) => /pend|offen/i.test(String(state.state ?? ""))).length;
+      return sum + statuses.filter(({ state }) => {
+        const value = String(state.state ?? "unknown").trim().toLowerCase();
+        return !/^(unknown|unavailable|none|null|n\/a|nicht verfügbar|nicht_verfügbar|—|-)$/.test(value)
+          && /(offen|pending|ausstehend|todo|to do|in arbeit|in bearbeitung|wartet|started|^false$|^off$|^no$|^nein$)/i.test(value)
+          && !/(erledigt|abgeschlossen|completed|complete|done|fertig|genehmigt|approved|^true$|^on$|^yes$|^ja$)/i.test(value);
+      }).length;
     }, 0);
     const totalPoints = profiles.reduce((sum, p) => {
       const s = this._find(p, "points");
@@ -237,16 +254,16 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         .score-progress { margin:8px 0 10px; } .progress-caption { display:flex; justify-content:space-between; gap:8px; color:#70b9d7; font-size:8px; letter-spacing:1px; } .progress-caption strong { color:#a8eaff; font-size:10px; } .progress-track { height:5px; overflow:hidden; margin-top:5px; border-radius:99px; background:#122b3c; } .progress-track span { display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,#087fb0,#5be0ff); box-shadow:0 0 9px #23bce777; } .progress-note { margin-top:4px; color:#587e94; font-size:8px; }
         .mission-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin:10px 0; } .mission-summary div { padding:7px 5px; text-align:center; border:1px solid #173247; border-radius:6px; background:#071421; } .mission-summary strong { display:block; color:#e9f8ff; font-size:15px; } .mission-summary span { display:block; color:#719bb2; font-size:8px; margin-top:3px; }
         .section-label { margin:8px 0 5px; font-size:9px; letter-spacing:1.6px; font-weight:800; color:#66c8ef; } .missions { display:grid; gap:5px; }
-        .mission-row { display:flex; align-items:center; gap:7px; padding:7px 0; border-bottom:1px solid #132b3d; min-width:0; } .status-dot { width:6px; height:6px; flex:0 0 6px; border-radius:50%; background:#55d6a2; box-shadow:0 0 8px #55d6a244; } .status-dot.pending { background:#f2b45e; box-shadow:0 0 8px #f2b45e44; }
-        .mission-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#c7dce9; font-size:10px; text-transform:capitalize; } .mission-state { color:#7fb3cb; font-size:9px; max-width:42%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .mission-state.state-pending { color:#ffc86f; }
+        .mission-row { display:flex; align-items:center; gap:7px; padding:7px 0; border-bottom:1px solid #132b3d; min-width:0; } .status-dot { width:7px; height:7px; flex:0 0 7px; border-radius:50%; background:#55d6a2; box-shadow:0 0 8px #55d6a244; } .status-dot.pending { background:#f2b45e; box-shadow:0 0 8px #f2b45e44; } .status-dot.unavailable { background:#ff6b78; box-shadow:0 0 8px #ff6b7844; } .status-dot.other { background:#8ba7ba; box-shadow:none; }
+        .mission-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#c7dce9; font-size:10px; text-transform:capitalize; } .mission-state { color:#7fb3cb; font-size:9px; max-width:42%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .mission-state.state-pending { color:#ffc86f; } .mission-state.state-done { color:#80e6b3; } .mission-state.state-unavailable { color:#ff8d99; } .mission-state.state-other { color:#9bb1bf; }
         .more-status { margin-top:6px; color:#5f91aa; font-size:9px; }
         .empty { color:#62849a; font-size:10px; padding:8px 0; }
         details.actions { margin-top:10px; border-top:1px solid #18364a; padding-top:8px; } summary { cursor:pointer; color:#7edbff; font-size:10px; font-weight:700; } summary span { float:right; color:#668ca2; font-weight:400; } .action-group { margin-top:8px; } .action-group-title { color:#6899b3; font-size:8px; letter-spacing:1px; text-transform:uppercase; } .action-list { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-top:6px; }
-        button.action { min-width:0; padding:7px 8px; border:1px solid #1a526d; border-radius:6px; background:#0b2638; color:#b9eaff; font-size:10px; cursor:pointer; overflow-wrap:anywhere; } button.action:hover { background:#103c55; } button.action.positive { border-color:#1e745c; color:#a4f0d2; background:#0b2a29; } button.action.danger { border-color:#77454a; color:#ffb7b7; background:#2a171e; }
+        button.action { min-width:0; min-height:36px; padding:8px 9px; border:1px solid #1a526d; border-radius:7px; background:#0b2638; color:#b9eaff; font-size:10px; line-height:1.25; cursor:pointer; overflow-wrap:anywhere; touch-action:manipulation; } button.action:hover { background:#103c55; } button.action:focus-visible, summary:focus-visible { outline:2px solid #8be2ff; outline-offset:2px; } button.action:disabled { opacity:.55; cursor:wait; } button.action.positive { border-color:#1e745c; color:#a4f0d2; background:#0b2a29; } button.action.danger { border-color:#b34d58; color:#ffd0d4; background:#35151d; box-shadow:inset 3px 0 #ff6575; } button.action.confirm-action { border-style:dashed; }
         .footer { display:flex; justify-content:space-between; gap:10px; padding:10px 14px; border-top:1px solid #18394f; color:#63869d; font-size:9px; letter-spacing:.4px; background:#050d16; }
         .toast { display:none; padding:10px 14px; color:#ffd98d; border-top:1px solid #624d2a; font-size:11px; background:#201a0d; }
         @media (max-width:900px) { .profiles { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-        @media (max-width:560px) { .hero { padding:14px 12px; } .hero-row { gap:9px; } .mark { width:38px;height:38px;flex-basis:38px;font-size:18px; } .eyebrow { font-size:7px;letter-spacing:1.2px; } .subtitle { font-size:9px; } .clock { font-size:21px; } .date { font-size:8px; } .overview { padding:8px;gap:5px; } .metric { padding:8px; } .metric label { font-size:7px;letter-spacing:.7px; } .metric strong { font-size:18px; } .content { padding:8px; } .profiles { grid-template-columns:1fr; gap:8px; } .profile { padding:11px; } .profile-chip { font-size:16px; } .footer { font-size:8px; } }
+        @media (max-width:560px) { .hero { padding:14px 12px; } .hero-row { gap:9px; } .mark { width:38px;height:38px;flex-basis:38px;font-size:18px; } .eyebrow { font-size:7px;letter-spacing:1.2px; } .subtitle { font-size:9px; } .clock { font-size:21px; } .date { font-size:8px; } .overview { padding:8px;gap:5px; } .metric { padding:8px; } .metric label { font-size:7px;letter-spacing:.7px; } .metric strong { font-size:18px; } .content { padding:8px; } .profiles { grid-template-columns:1fr; gap:8px; } .profile { padding:10px; } .profile-top { gap:8px; } .avatar { width:38px; height:38px; flex-basis:38px; } .stats { margin:8px 0; gap:6px; } .stat { padding:7px; } .mission-summary { margin:8px 0; } .mission-row { gap:6px; padding:5px 0; } .mission-name { font-size:11px; } .mission-state { max-width:38%; font-size:10px; } .missions .mission-row:nth-child(n+5) { display:none; } details.actions { margin-top:8px; } summary { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; padding:6px 0; font-size:11px; } summary span { float:none; flex:0 0 auto; } .action-list { grid-template-columns:1fr; gap:7px; } button.action { min-height:44px; padding:10px 12px; text-align:left; font-size:12px; } .footer { font-size:8px; } }
       </style>
       <div class="shell">
         <header class="hero">
@@ -286,14 +303,26 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
       button.addEventListener("click", async () => {
         const entityId = button.dataset.entity;
         const label = button.dataset.label || entityId;
-        const needsConfirm = /ablehnen|strafe|verringern|genehmigen/i.test(entityId);
-        if (needsConfirm && !window.confirm(`Aktion ausführen?\n\n${label}`)) return;
+        const needsConfirm = button.dataset.confirm === "true";
+        if (needsConfirm) {
+          const warning = button.classList.contains("danger")
+            ? "ACHTUNG: Diese Aktion kann Punkte abziehen oder eine Mission ablehnen."
+            : "Bitte bestätige, dass du diese Punkte- oder Verwaltungsaktion ausführen möchtest.";
+          if (!window.confirm(`${warning}\n\n${label}\n\nJetzt ausführen?`)) return;
+        }
+        if (button.disabled) return;
+        button.disabled = true;
+        const originalText = button.textContent;
+        button.textContent = "Wird ausgeführt …";
         try {
           const [domain] = entityId.split(".");
           await this._hass.callService(domain, "press", { entity_id: entityId });
           this._showToast(`Aktion ausgelöst: ${label}`);
         } catch (err) {
           this._showToast(`Aktion fehlgeschlagen: ${err?.message || err}`);
+        } finally {
+          button.disabled = false;
+          button.textContent = originalText;
         }
       });
     });
