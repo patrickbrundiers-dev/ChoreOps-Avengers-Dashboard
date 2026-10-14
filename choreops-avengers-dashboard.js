@@ -176,10 +176,9 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         ${controls ? `<details class="actions"><summary>Missionen & Punkte verwalten <span>${actions.length + pointButtons.length} Aktionen</span></summary>${controls}</details>` : ""}
       </article>`;
     }).join("");
-    const allTasks = profiles.reduce((sum, p) => {
-      const s = this._find(p, "aufgaben");
-      const n = Number(s?.state);
-      return sum + (Number.isFinite(n) ? n : 0);
+    const openMissions = profiles.reduce((sum, p) => {
+      const statuses = this._entities(`${p.id}_choreops_aufgabenstatus_`, "sensor");
+      return sum + statuses.filter(({ state }) => /pend|offen/i.test(String(state.state ?? ""))).length;
     }, 0);
     const totalPoints = profiles.reduce((sum, p) => {
       const s = this._find(p, "points");
@@ -254,7 +253,7 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         </header>
         <div class="overview">
           <div class="metric"><label>Familienmitglieder</label><strong>${profiles.length}</strong></div>
-          <div class="metric"><label>Aufgaben laut ChoreOps</label><strong>${this._escape(this._num(allTasks))}</strong></div>
+          <div class="metric"><label>Offene Missionen</label><strong>${this._escape(this._num(openMissions))}</strong></div>
           <div class="metric"><label>Team-Punkte</label><strong>${this._escape(this._num(totalPoints))}</strong></div>
         </div>
         <main class="content">
