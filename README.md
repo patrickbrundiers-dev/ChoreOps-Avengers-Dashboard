@@ -7,7 +7,10 @@ A responsive Home Assistant Lovelace custom card inspired by the Stark Industrie
 - Dark navy command-center layout with cyan accents
 - Family overview for Patrick, Jenny, Leonie, Lisa and Nele (profile names are configurable)
 - Discovers ChoreOps entities dynamically from Home Assistant state; no fixed entity IDs required
-- Shows task counts, points, badges and task-status sensors
+- Compact mission cards with task-status summaries and pending-status counts
+- Family-wide points ranking and comparative progress bars (not a fixed reward target)
+- Points and badges shown per family member
+- ChoreOps task actions and point-adjustment buttons grouped in collapsible controls
 - Calls ChoreOps button entities through Home Assistant when an action button is tapped
 - Responsive layout for mobile, tablet and desktop
 - No card-mod, Mushroom, Bubble Card or other frontend dependencies
