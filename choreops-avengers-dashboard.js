@@ -246,15 +246,12 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         ${controls ? `<details class="actions" data-profile-actions="${this._escape(profile.id)}"><summary>Missionen & Punkte verwalten <span>${actions.length + pointButtons.length} Aktionen</span></summary>${controls}</details>` : ""}
       </article>`;
     }).join("");
-    const openMissions = profiles.reduce((sum, p) => {
-      const statuses = this._entities(`${p.id}_choreops_aufgabenstatus_`, "sensor");
-      return sum + statuses.filter(({ state }) => {
-        const value = String(state.state ?? "unknown").trim().toLowerCase();
-        return !/^(unknown|unavailable|none|null|n\/a|nicht verfügbar|nicht_verfügbar|—|-)$/.test(value)
-          && /(offen|pending|ausstehend|todo|to do|in arbeit|in bearbeitung|wartet|started|^false$|^off$|^no$|^nein$)/i.test(value)
-          && !/(erledigt|abgeschlossen|completed|complete|done|fertig|genehmigt|approved|^true$|^on$|^yes$|^ja$)/i.test(value);
-      }).length;
-    }, 0);
+    // Der Zähler verwendet dieselben normalisierten Statusdaten wie die Profilkarten,
+    // einschließlich der alternativen ChoreOps-Statussensoren.
+    const openMissions = profileData.reduce(
+      (sum, item) => sum + item.statusItems.filter(status => status.statusType === "pending").length,
+      0
+    );
     const totalPoints = profiles.reduce((sum, p) => {
       const s = this._find(p, "points");
       const n = Number(s?.state);
@@ -268,7 +265,7 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
       <style>
         :host { display:block; color:#eaf5ff; font-family:var(--primary-font-family,Roboto,"Arial",sans-serif); }
         * { box-sizing:border-box; }
-        .shell { overflow:hidden; border-radius:16px; background:#050d17; border:1px solid #173c58; box-shadow:0 8px 28px #0006; }
+        .shell { container-type:inline-size; width:100%; min-width:0; overflow:hidden; border-radius:16px; background:#050d17; border:1px solid #173c58; box-shadow:0 8px 28px #0006; }
         .hero { position:relative; padding:18px 20px 16px; background:radial-gradient(ellipse at 80% 0%,#0d4165 0%,transparent 46%),linear-gradient(110deg,#071827,#0a2034 60%,#06111d); border-bottom:1px solid #1b4966; }
         .hero:after { content:""; position:absolute; inset:0; pointer-events:none; opacity:.18; background:repeating-linear-gradient(0deg,transparent 0 5px,#2aa8d7 6px,transparent 7px); }
         .hero-row { position:relative; z-index:1; display:flex; align-items:center; gap:14px; }
@@ -311,8 +308,8 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         button.action { min-width:0; min-height:36px; padding:8px 9px; border:1px solid #1a526d; border-radius:7px; background:#0b2638; color:#b9eaff; font-size:10px; line-height:1.25; cursor:pointer; overflow-wrap:anywhere; touch-action:manipulation; } button.action:hover { background:#103c55; } button.action:focus-visible, summary:focus-visible { outline:2px solid #8be2ff; outline-offset:2px; } button.action:disabled { opacity:.55; cursor:wait; } button.action.positive { border-color:#1e745c; color:#a4f0d2; background:#0b2a29; } button.action.danger { border-color:#b34d58; color:#ffd0d4; background:#35151d; box-shadow:inset 3px 0 #ff6575; } button.action.confirm-action { border-style:dashed; }
         .footer { display:flex; justify-content:space-between; gap:10px; padding:10px 14px; border-top:1px solid #18394f; color:#63869d; font-size:9px; letter-spacing:.4px; background:#050d16; }
         .toast { display:none; padding:10px 14px; color:#ffd98d; border-top:1px solid #624d2a; font-size:11px; background:#201a0d; }
-        @media (max-width:900px) { .profiles { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-        @media (max-width:560px) { .hero { padding:14px 12px; } .hero-row { gap:9px; } .mark { width:38px;height:38px;flex-basis:38px;font-size:18px; } .eyebrow { font-size:7px;letter-spacing:1.2px; } .subtitle { font-size:9px; } .clock { font-size:21px; } .date { font-size:8px; } .overview { padding:8px;gap:5px; } .metric { padding:8px; } .metric label { font-size:7px;letter-spacing:.7px; } .metric strong { font-size:18px; } .content { padding:8px; } .profiles { grid-template-columns:1fr; gap:8px; } .profile { padding:10px; } .profile-top { gap:8px; } .avatar { width:38px; height:38px; flex-basis:38px; } .stats { margin:8px 0; gap:6px; } .stat { padding:7px; } .mission-summary { margin:8px 0; } .mission-row { gap:6px; padding:5px 0; } .mission-name { font-size:11px; } .mission-state { max-width:38%; font-size:10px; } .missions .mission-row:nth-child(n+5) { display:none; } details.actions { margin-top:8px; } summary { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; padding:6px 0; font-size:11px; } summary span { float:none; flex:0 0 auto; } .action-list { grid-template-columns:1fr; gap:7px; } button.action { min-height:44px; padding:10px 12px; text-align:left; font-size:12px; } .footer { font-size:8px; } }
+        @container (max-width:900px) { .profiles { grid-template-columns:repeat(2,minmax(0,1fr)); } .profile { padding:10px; } }
+        @container (max-width:560px) { .hero { padding:14px 12px; } .hero-row { gap:9px; } .mark { width:38px;height:38px;flex-basis:38px;font-size:18px; } .eyebrow { font-size:7px;letter-spacing:1.2px; } .subtitle { font-size:9px; } .clock { font-size:21px; } .date { font-size:8px; } .overview { padding:8px;gap:5px; } .metric { padding:8px; } .metric label { font-size:7px;letter-spacing:.7px; } .metric strong { font-size:18px; } .content { padding:8px; } .profiles { grid-template-columns:1fr; gap:8px; } .profile { padding:10px; } .profile-top { gap:8px; } .avatar { width:38px; height:38px; flex-basis:38px; } .stats { margin:8px 0; gap:6px; } .stat { padding:7px; } .mission-summary { margin:8px 0; } .mission-row { gap:6px; padding:5px 0; } .mission-name { font-size:11px; } .mission-state { max-width:38%; font-size:10px; } details.actions { margin-top:8px; } summary { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; padding:6px 0; font-size:11px; } summary span { float:none; flex:0 0 auto; } .action-list { grid-template-columns:1fr; gap:7px; } button.action { min-height:44px; padding:10px 12px; text-align:left; font-size:12px; } .footer { font-size:8px; } }
       </style>
       <div class="shell">
         <header class="hero">
