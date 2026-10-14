@@ -125,7 +125,38 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
       const points = this._find(profile, "points");
       const badge = this._find(profile, "abzeichen");
       const statuses = this._entities(`${prefix}aufgabenstatus_`, "sensor");
-      const actions = this._entities(`${prefix}aufgabe_`, "button");
+      const actions = this._entities(prefix + "aufgabe_", "button").map(action => {
+        const linkedStatus = statusItems.find(status => {
+          const attrs = status.attributes || {};
+          return [attrs.claim_button_eid, attrs.approve_button_eid, attrs.disapprove_button_eid]
+            .some(entityId => entityId && entityId === action.entityId);
+        });
+        let actionKind = "other";
+        let canRun = true;
+        let reason = "";
+        if (linkedStatus) {
+          const attrs = linkedStatus.attributes || {};
+          if (attrs.claim_button_eid === action.entityId) {
+            actionKind = "claim";
+            canRun = attrs.can_claim !== false;
+            reason = "Diese Aufgabe kann aktuell nicht beansprucht werden.";
+          } else if (attrs.approve_button_eid === action.entityId) {
+            actionKind = "approve";
+            canRun = attrs.can_approve !== false;
+            reason = "Für diese Aufgabe liegt aktuell keine genehmigungsfähige Erledigung vor.";
+          } else if (attrs.disapprove_button_eid === action.entityId) {
+            actionKind = "disapprove";
+            canRun = attrs.can_approve !== false;
+            reason = "Es liegt aktuell keine genehmigungsfähige Erledigung zum Ablehnen vor.";
+          }
+        } else {
+          const id = action.entityId.toLowerCase();
+          if (/claim|beanspruch/.test(id)) actionKind = "claim";
+          else if (/disapprove|ablehn|disapproval/.test(id)) actionKind = "disapprove";
+          else if (/approve|genehmig|approval/.test(id)) actionKind = "approve";
+        }
+        return { ...action, actionKind, canRun, reason, choreName: linkedStatus?.attributes?.chore_name || "" };
+      });
       const pointButtons = this._entities(`${profile.id}_choreops_points_um_`, "button");
       const score = Number(points?.state);
       const statusItems = statuses.map(({ entityId, state }) => {
@@ -143,7 +174,9 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         const statusType = unavailable ? "unavailable" : done ? "done" : pending ? "pending" : "other";
         const statusLabel = unavailable ? "Nicht verfügbar" : done ? "Erledigt" : pending ? "Offen" : val;
         return {
-          name: name || entityId.split(".").pop().replace(profile.id + "_choreops_", "").replaceAll("_", " "),
+          entityId,
+          attributes: state.attributes || {},
+          name: state.attributes?.chore_name || name || entityId.split(".").pop().replace(profile.id + "_choreops_", "").replaceAll("_", " "),
           val,
           statusType,
           statusLabel,
@@ -177,15 +210,20 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         { title: "Aufgaben", items: actions },
         { title: "Punkte", items: pointButtons },
       ].filter(group => group.items.length);
-      const controls = groups.map(group => `<div class="action-group"><div class="action-group-title">${this._escape(group.title)}</div><div class="action-list">${group.items.slice(0, 12).map(({ entityId, state }) => {
+      const controls = groups.map(group => `<div class="action-group"><div class="action-group-title">${this._escape(group.title)}</div><div class="action-list">${group.items.slice(0, 12).map(({ entityId, state, actionKind, canRun, reason, choreName }) => {
         const name = this._friendly(entityId, state);
         const lower = entityId.toLowerCase();
         const isPointsAction = group.title === "Punkte";
-        const danger = /ablehnen|strafe|verringern|abziehen|löschen|loeschen|entfernen|zurücksetzen|reset|delete|minus|subtract|remove/.test(lower);
-        const positive = /genehmigen|beanspruchen|erhöhen|hinzufügen|add|plus/.test(lower);
-        const needsConfirm = danger || isPointsAction || /genehmigen|ablehnen|beanspruchen|verringern|erhöhen|abziehen/.test(lower);
+        const danger = actionKind === "disapprove" || /ablehnen|strafe|verringern|abziehen|löschen|loeschen|entfernen|zurücksetzen|reset|delete|minus|subtract|remove/.test(lower);
+        const positive = actionKind === "claim" || actionKind === "approve" || /genehmigen|beanspruchen|erhöhen|hinzufügen|add|plus/.test(lower);
+        const needsConfirm = danger || isPointsAction || actionKind === "approve";
         const safeLabel = name.replace(/^[^–-]+[–-]\s*/, "");
-        return `<button class="action ${danger ? "danger" : positive ? "positive" : ""} ${needsConfirm ? "confirm-action" : ""}" data-entity="${this._escape(entityId)}" data-label="${this._escape(safeLabel)}" data-confirm="${needsConfirm ? "true" : "false"}" aria-label="${this._escape((danger ? "Achtung: " : "") + safeLabel)}">${danger ? "⚠ " : isPointsAction ? "✦ " : ""}${this._escape(safeLabel)}</button>`;
+        const taskLabel = choreName || safeLabel;
+        const verb = actionKind === "claim" ? "Aufgabe beanspruchen" : actionKind === "approve" ? "Erledigung bestätigen" : actionKind === "disapprove" ? "Erledigung ablehnen" : "";
+        const displayLabel = verb ? verb + ": " + taskLabel : safeLabel;
+        const disabled = canRun === false;
+        const title = disabled ? reason : (danger ? "Achtung: Diese Aktion kann eine Erledigung ablehnen." : displayLabel);
+        return `<button class="action ${danger ? "danger" : positive ? "positive" : ""} ${needsConfirm ? "confirm-action" : ""}" data-entity="${this._escape(entityId)}" data-label="${this._escape(displayLabel)}" data-confirm="${needsConfirm ? "true" : "false"}" ${disabled ? "disabled" : ""} title="${this._escape(title)}" aria-label="${this._escape((danger ? "Achtung: " : "") + displayLabel)}">${danger ? "⚠ " : isPointsAction ? "✦ " : actionKind === "claim" ? "✓ " : actionKind === "approve" ? "✔ " : ""}${this._escape(displayLabel)}${disabled ? " · derzeit nicht möglich" : ""}</button>`;
       }).join("")}</div></div>`).join("");
       return `<article class="profile">
         <div class="profile-top" style="${heroStyle}"><div class="avatar hero-avatar" title="${this._escape(hero.name)}">${hero.svg}</div><div class="profile-title"><h3>${this._escape(profile.name)}</h3><span>${this._escape(profile.role)}</span><div class="hero-title"><span class="hero-dot"></span>${this._escape(hero.name)}</div></div><div class="rank-chip">#${rankById[profile.id] || "—"}<small>RANG</small></div></div>
