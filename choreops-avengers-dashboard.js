@@ -124,7 +124,8 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
       const tasks = this._find(profile, "aufgaben");
       const points = this._find(profile, "points");
       const badge = this._find(profile, "abzeichen");
-      const statuses = this._entities(`${prefix}aufgabenstatus_`, "sensor");
+      const localizedStatuses = this._entities(`${prefix}aufgabenstatus_`, "sensor");
+      const statuses = localizedStatuses.length ? localizedStatuses : this._entities(`${prefix}chore_status_`, "sensor");
       const actions = this._entities(prefix + "aufgabe_", "button").map(action => {
         const linkedStatus = statusItems.find(status => {
           const attrs = status.attributes || {};
@@ -138,15 +139,15 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
           const attrs = linkedStatus.attributes || {};
           if (attrs.claim_button_eid === action.entityId) {
             actionKind = "claim";
-            canRun = attrs.can_claim !== false;
+            canRun = attrs.can_claim === true;
             reason = "Diese Aufgabe kann aktuell nicht beansprucht werden.";
           } else if (attrs.approve_button_eid === action.entityId) {
             actionKind = "approve";
-            canRun = attrs.can_approve !== false;
+            canRun = attrs.can_approve === true;
             reason = "Für diese Aufgabe liegt aktuell keine genehmigungsfähige Erledigung vor.";
           } else if (attrs.disapprove_button_eid === action.entityId) {
             actionKind = "disapprove";
-            canRun = attrs.can_approve !== false;
+            canRun = attrs.can_approve === true;
             reason = "Es liegt aktuell keine genehmigungsfähige Erledigung zum Ablehnen vor.";
           }
         } else {
