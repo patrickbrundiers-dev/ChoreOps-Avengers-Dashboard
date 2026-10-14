@@ -99,6 +99,10 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
       const score = Number(points?.state);
       const statusItems = statuses.map(({ entityId, state }) => {
         const val = String(state.state ?? "unknown");
+        const friendly = this._friendly(entityId, state);
+        const name = friendly
+          .replace(new RegExp("^" + profile.name.replace(/[.*+?^${}()|[\]\\]/g, "\\      const statusItems = statuses.map(({ entityId, state }) => {
+        const val = String(state.state ?? "unknown");
         return {
           name: this._friendly(entityId, state).replace(/^Aufgabenstatus\s*[-:]?\s*/i, ""),
           val,
@@ -109,7 +113,26 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
     });
     const maxScore = Math.max(1, ...profileData.map(item => item.score));
     const ranked = [...profileData].sort((a, b) => b.score - a.score);
-    const rankById = Object.fromEntries(ranked.map((item, index) => [item.profile.id, index + 1]));
+    const rankById = Object.fromEntries(ranked.map((item, index) => [item.profile.id, index + 1]));") + "\\s*\\(ChoreOps\\)\\s*", "i"), "")
+          .replace(/^Aufgabenstatus\s*[-:]?\s*/i, "")
+          .replace(/^ChoreOps\s*[-:]?\s*/i, "");
+        return {
+          name: name || entityId.split(".").pop().replace(new RegExp("^" + profile.id + "_choreops_"), "").replaceAll("_", " "),
+          val,
+          pending: /pend|offen|unknown|unavailable/i.test(val),
+        };
+      });
+      return { profile, tasks, points, badge, actions, pointButtons, statusItems, score: Number.isFinite(score) ? score : 0 };
+    });
+    const maxScore = Math.max(1, ...profileData.map(item => item.score));
+    const rankById = {};
+    let rank = 0;
+    let previousScore = null;
+    [...profileData].sort((a, b) => b.score - a.score).forEach((item, index) => {
+      if (previousScore === null || item.score !== previousScore) rank = index + 1;
+      rankById[item.profile.id] = rank;
+      previousScore = item.score;
+    });
     const profileCards = profileData.map(item => {
       const { profile, tasks, points, badge, actions, pointButtons, statusItems, score } = item;
       const pendingCount = statusItems.filter(status => status.pending).length;
@@ -133,7 +156,7 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
       return `<article class="profile">
         <div class="profile-top"><div class="avatar">${this._escape(profile.name.slice(0, 1).toUpperCase())}</div><div class="profile-title"><h3>${this._escape(profile.name)}</h3><span>${this._escape(profile.role)}</span></div><div class="rank-chip">#${rankById[profile.id] || "—"}<small>RANG</small></div></div>
         <div class="stats"><div class="stat"><span class="stat-icon">✦</span><strong>${this._escape(this._num(points?.state ?? "—"))}</strong><small>Punkte</small></div><div class="stat"><span class="stat-icon">⬡</span><strong class="badge-value">${this._escape(badgeValue)}</strong><small>Abzeichen</small></div></div>
-        <div class="score-progress"><div class="progress-caption"><span>PUNKTE-FORTSCHRITT</span><strong>${progress}%</strong></div><div class="progress-track"><span style="width:${progress}%"></span></div><div class="progress-note">Vergleich innerhalb der Familie · kein festes Belohnungsziel</div></div>
+        <div class="score-progress"><div class="progress-caption"><span>PUNKTE-FORTSCHRITT</span><strong>${progress}%</strong></div><div class="progress-track"><span style="width:${progress}%"></span></div><div class="progress-note">Relativer Punktestand innerhalb der Familie</div></div>
         <div class="mission-summary"><div><strong>${statusItems.length}</strong><span>Status</span></div><div><strong>${pendingCount}</strong><span>Offen / prüfen</span></div><div><strong>${otherCount}</strong><span>Andere Status</span></div></div>
         <div class="section-label">MISSIONEN · STATUS</div><div class="missions">${statusHtml}</div>
         ${statusItems.length > 5 ? `<div class="more-status">+${statusItems.length - 5} weitere Statussensoren</div>` : ""}
