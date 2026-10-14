@@ -142,6 +142,47 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
       const n = Number(s?.state);
       return sum + (Number.isFinite(n) ? n : 0);
     }, 0);
+    const weatherEntity = this._config.weather_entity
+      ? this._state(this._config.weather_entity)
+      : Object.entries(this._hass?.states || {}).find(([id]) => id.startsWith("weather."))?.[1] || null;
+    const weatherId = this._config.weather_entity || Object.entries(this._hass?.states || {}).find(([id]) => id.startsWith("weather."))?.[0];
+    const weatherName = weatherEntity?.attributes?.friendly_name || "Wetter";
+    const weatherCondition = weatherEntity?.state || "Nicht konfiguriert";
+    const weatherTemp = weatherEntity?.attributes?.temperature;
+    const weatherUnit = weatherEntity?.attributes?.temperature_unit || "°C";
+    const weatherHtml = weatherEntity
+      ? `<div class="weather-main"><div class="weather-symbol">☁</div><div><strong>${this._escape(weatherTemp !== undefined ? this._num(weatherTemp) + " " + weatherUnit : weatherCondition)}</strong><span>${this._escape(weatherName)}</span></div></div><div class="weather-condition">${this._escape(weatherCondition)}</div>`
+      : `<div class="empty">Kein Wetter-Entity gefunden.<br>Optional in der Kartenkonfiguration über <code>weather_entity</code> ergänzen.</div>`;
+
+    const calendarEntities = (this._config.calendar_entities || Object.keys(this._hass?.states || {}).filter(id => id.startsWith("calendar.") && id.includes("choreops_kalender"))).map(id => ({ id, state: this._state(id) })).filter(item => item.state);
+    const calendarHtml = calendarEntities.length
+      ? calendarEntities.map(({ id, state }) => {
+          const message = state.attributes?.message || state.attributes?.friendly_name || id.split(".").pop().replaceAll("_", " ");
+          const start = state.attributes?.start_time;
+          const when = start ? new Date(start).toLocaleString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : (state.state === "on" ? "Termin aktiv" : "Kein aktueller Termin");
+          return `<div class="calendar-row"><span class="calendar-date">${this._escape(when)}</span><strong>${this._escape(message)}</strong></div>`;
+        }).join("")
+      : `<div class="empty">Keine ChoreOps-Kalender gefunden.</div>`;
+
+    const configuredClimate = this._config.climate_entities || Object.entries(this._hass?.states || {})
+      .filter(([id, state]) => id.startsWith("sensor.") && (state.attributes?.unit_of_measurement === "°C" || state.attributes?.unit_of_measurement === "°F") && /temperatur|temperature|zimmer|wohnzimmer|schlafzimmer|kinderzimmer|bad|küche|flur/i.test(state.attributes?.friendly_name || id))
+      .map(([id]) => id).slice(0, 8);
+    const climateHtml = configuredClimate.map(id => {
+      const state = this._state(id);
+      if (!state) return "";
+      const unit = state.attributes?.unit_of_measurement || "";
+      return `<div class="climate-row"><span>${this._escape(this._friendly(id, state))}</span><strong>${this._escape(this._num(state.state))}${this._escape(unit)}</strong></div>`;
+    }).join("") || `<div class="empty">Raumtemperaturen optional über <code>climate_entities</code> konfigurieren.</div>`;
+
+    const pendingMissions = profiles.flatMap(profile => this._entities(`${profile.id}_choreops_aufgabenstatus_`, "sensor").map(({ entityId, state }) => ({
+      profile: profile.name,
+      name: this._friendly(entityId, state).replace(/^Aufgabenstatus\\s*[-:]?\\s*/i, ""),
+      value: String(state.state ?? "unknown"),
+    })).filter(item => /pend|offen|unknown|unavailable/i.test(item.value))).slice(0, 6);
+    const alertsHtml = pendingMissions.length
+      ? pendingMissions.map(item => `<div class="alert-row"><span class="status-dot pending"></span><div><strong>${this._escape(item.name)}</strong><span>${this._escape(item.profile)} · ${this._escape(item.value)}</span></div></div>`).join("")
+      : `<div class="empty">Keine offenen Aufgabenstatus erkannt.</div>`;
+
     const now = new Date();
     const time = now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
     const date = now.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long" });
@@ -162,7 +203,20 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         .metric { padding:10px 12px; border:1px solid #173b54; border-radius:8px; background:linear-gradient(140deg,#0b1d2d,#081522); min-width:0; }
         .metric label { display:block; color:#83b6d2; font-size:9px; letter-spacing:1.3px; text-transform:uppercase; } .metric strong { display:block; color:#eaf8ff; font-size:22px; margin-top:4px; }
         .content { padding:12px; } .section-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 10px; color:#a6d9ef; font-size:10px; letter-spacing:1.8px; font-weight:800; } .section-heading span { color:#5e91ad; font-size:9px; letter-spacing:0; }
-        .profiles { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+        .command-grid { display:grid; grid-template-columns:minmax(155px,.78fr) minmax(0,2fr) minmax(170px,.88fr); gap:10px; align-items:start; }
+        .side-stack { display:grid; gap:10px; min-width:0; }
+        .side-panel { min-width:0; padding:11px; border:1px solid #1a3b51; border-radius:10px; background:linear-gradient(155deg,#0c1b2a,#08121e 70%); }
+        .panel-title { margin:0 0 10px; color:#78d7fa; font-size:9px; letter-spacing:1.4px; font-weight:800; }
+        .weather-main { display:flex; align-items:center; gap:10px; padding:6px 0; }
+        .weather-symbol { display:grid; place-items:center; width:42px; height:42px; border-radius:50%; border:1px solid #24617b; background:#0b2a40; color:#8be2ff; font-size:22px; }
+        .weather-main strong { display:block; font-size:22px; color:#effaff; } .weather-main span { display:block; color:#80a9c0; font-size:9px; margin-top:3px; }
+        .weather-condition { color:#c0d7e5; font-size:10px; text-transform:capitalize; border-top:1px solid #173247; padding-top:8px; margin-top:7px; }
+        .calendar-row { display:grid; gap:4px; padding:8px 0; border-bottom:1px solid #173247; }
+        .calendar-row:last-child { border-bottom:0; } .calendar-date { color:#53c6ef; font-size:9px; } .calendar-row strong { color:#d5e7f2; font-size:10px; line-height:1.4; font-weight:600; }
+        .climate-row { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid #173247; }
+        .climate-row:last-child { border-bottom:0; } .climate-row span { color:#b8d0df; font-size:9px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .climate-row strong { color:#f2f9ff; font-size:12px; white-space:nowrap; }
+        .alert-row { display:flex; gap:7px; align-items:flex-start; padding:7px 0; border-bottom:1px solid #173247; } .alert-row div { min-width:0; } .alert-row strong { display:block; color:#d7e9f3; font-size:10px; overflow-wrap:anywhere; } .alert-row div span { display:block; color:#729bb2; font-size:9px; margin-top:3px; }
+        .profiles { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
         .profile { min-width:0; padding:12px; border:1px solid #1a3b51; border-radius:10px; background:linear-gradient(155deg,#0c1b2a,#08121e 70%); box-shadow:inset 0 1px #ffffff05; }
         .profile-top { display:flex; align-items:center; gap:9px; min-width:0; } .avatar { display:grid; place-items:center; width:35px; height:35px; flex:0 0 35px; border:1px solid #1aa5d2; border-radius:50%; color:#9be9ff; background:#0a2b41; font-size:16px; font-weight:800; }
         .profile-title { min-width:0; flex:1; } h3 { margin:0 0 3px; font-size:14px; color:#f0f8ff; } .profile-title span { color:#79a6c0; font-size:10px; }
@@ -177,7 +231,8 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         button.action { min-width:0; padding:7px 8px; border:1px solid #1a526d; border-radius:6px; background:#0b2638; color:#b9eaff; font-size:10px; cursor:pointer; overflow-wrap:anywhere; } button.action:hover { background:#103c55; } button.action.positive { border-color:#1e745c; color:#a4f0d2; background:#0b2a29; } button.action.danger { border-color:#77454a; color:#ffb7b7; background:#2a171e; }
         .footer { display:flex; justify-content:space-between; gap:10px; padding:10px 14px; border-top:1px solid #18394f; color:#63869d; font-size:9px; letter-spacing:.4px; background:#050d16; }
         .toast { display:none; padding:10px 14px; color:#ffd98d; border-top:1px solid #624d2a; font-size:11px; background:#201a0d; }
-        @media (max-width:900px) { .profiles { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+        @media (max-width:1050px) { .command-grid { grid-template-columns:minmax(0,1fr) minmax(0,2fr); } .right-stack { grid-column:1 / -1; grid-template-columns:repeat(2,minmax(0,1fr)); } }
+        @media (max-width:760px) { .command-grid { grid-template-columns:1fr; } .left-stack,.right-stack { grid-column:auto; grid-template-columns:repeat(2,minmax(0,1fr)); } .profiles { grid-template-columns:repeat(2,minmax(0,1fr)); } }
         @media (max-width:560px) { .hero { padding:14px 12px; } .hero-row { gap:9px; } .mark { width:38px;height:38px;flex-basis:38px;font-size:18px; } .eyebrow { font-size:7px;letter-spacing:1.2px; } .subtitle { font-size:9px; } .clock { font-size:21px; } .date { font-size:8px; } .overview { padding:8px;gap:5px; } .metric { padding:8px; } .metric label { font-size:7px;letter-spacing:.7px; } .metric strong { font-size:18px; } .content { padding:8px; } .profiles { grid-template-columns:1fr; gap:8px; } .profile { padding:11px; } .profile-chip { font-size:16px; } .footer { font-size:8px; } }
       </style>
       <div class="shell">
@@ -198,8 +253,21 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
           <div class="metric"><label>Team-Punkte</label><strong>${this._escape(this._num(totalPoints))}</strong></div>
         </div>
         <main class="content">
-          <div class="section-heading">TEAM · MISSIONEN <span>CHOREOPS LIVE-ENTITÄTEN</span></div>
-          <div class="profiles">${profileCards}</div>
+          <div class="section-heading">FAMILIENZENTRALE <span>CHOREOPS LIVE-ENTITÄTEN</span></div>
+          <div class="command-grid">
+            <aside class="side-stack left-stack">
+              <section class="side-panel"><h2 class="panel-title">THOR · WETTER</h2>${weatherHtml}</section>
+              <section class="side-panel"><h2 class="panel-title">S.H.I.E.L.D. · MELDUNGEN</h2>${alertsHtml}</section>
+            </aside>
+            <section>
+              <div class="section-heading">TEAM · MISSIONEN <span>${profiles.length} PROFILE</span></div>
+              <div class="profiles">${profileCards}</div>
+            </section>
+            <aside class="side-stack right-stack">
+              <section class="side-panel"><h2 class="panel-title">EINSATZKALENDER</h2>${calendarHtml}</section>
+              <section class="side-panel"><h2 class="panel-title">WÄRMEZENTRALE</h2>${climateHtml}</section>
+            </aside>
+          </div>
         </main>
         <div class="toast" role="status"></div>
         <footer class="footer"><span>SHIELD.NET · CHOREOPS VERBUNDEN</span><span>FAMILIENZENTRALE · v1.0.0</span></footer>
