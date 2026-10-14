@@ -88,50 +88,58 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
       role: p.role || "Familienmitglied",
     })).filter(p => p.id);
 
-    const profileCards = profiles.map(profile => {
+    const profileData = profiles.map(profile => {
       const prefix = `${profile.id}_choreops_`;
       const tasks = this._find(profile, "aufgaben");
       const points = this._find(profile, "points");
       const badge = this._find(profile, "abzeichen");
       const statuses = this._entities(`${prefix}aufgabenstatus_`, "sensor");
       const actions = this._entities(`${prefix}aufgabe_`, "button");
-      const visibleStatuses = statuses.slice(0, 5);
-      const statusHtml = visibleStatuses.length
-        ? visibleStatuses.map(({ entityId, state }) => {
-            const val = String(state.state ?? "unknown");
-            const pending = /pend|offen|unknown|unavailable/i.test(val);
-            return `<div class="mission-row">
-              <span class="status-dot ${pending ? "pending" : "done"}"></span>
-              <span class="mission-name">${this._escape(this._friendly(entityId, state).replace(/^Aufgabenstatus\s*[-:]?\s*/i, ""))}</span>
-              <span class="mission-state">${this._escape(val)}</span>
-            </div>`;
-          }).join("")
-        : `<div class="empty">Keine Aufgabenstatus-Sensoren gefunden</div>`;
-
-      const actionButtons = actions.slice(0, 8).map(({ entityId, state }) => {
+      const pointButtons = this._entities(`${profile.id}_choreops_points_um_`, "button");
+      const score = Number(points?.state);
+      const statusItems = statuses.map(({ entityId, state }) => {
+        const val = String(state.state ?? "unknown");
+        return {
+          name: this._friendly(entityId, state).replace(/^Aufgabenstatus\s*[-:]?\s*/i, ""),
+          val,
+          pending: /pend|offen|unknown|unavailable/i.test(val),
+        };
+      });
+      return { profile, tasks, points, badge, actions, pointButtons, statusItems, score: Number.isFinite(score) ? score : 0 };
+    });
+    const maxScore = Math.max(1, ...profileData.map(item => item.score));
+    const ranked = [...profileData].sort((a, b) => b.score - a.score);
+    const rankById = Object.fromEntries(ranked.map((item, index) => [item.profile.id, index + 1]));
+    const profileCards = profileData.map(item => {
+      const { profile, tasks, points, badge, actions, pointButtons, statusItems, score } = item;
+      const pendingCount = statusItems.filter(status => status.pending).length;
+      const otherCount = statusItems.length - pendingCount;
+      const progress = Math.max(0, Math.min(100, Math.round(score / maxScore * 100)));
+      const badgeValue = badge?.state && !["unknown", "unavailable", "None", "none", ""].includes(String(badge.state)) ? String(badge.state) : "Noch keine";
+      const statusHtml = statusItems.length
+        ? statusItems.slice(0, 5).map(status => `<div class="mission-row"><span class="status-dot ${status.pending ? "pending" : "done"}"></span><span class="mission-name">${this._escape(status.name)}</span><span class="mission-state ${status.pending ? "state-pending" : ""}">${this._escape(status.val)}</span></div>`).join("")
+        : `<div class="empty">Keine Aufgabenstatus-Entitäten gefunden.</div>`;
+      const groups = [
+        { title: "Aufgaben", items: actions },
+        { title: "Punkte", items: pointButtons },
+      ].filter(group => group.items.length);
+      const controls = groups.map(group => `<div class="action-group"><div class="action-group-title">${this._escape(group.title)}</div><div class="action-list">${group.items.slice(0, 12).map(({ entityId, state }) => {
         const name = this._friendly(entityId, state);
         const lower = entityId.toLowerCase();
         const danger = /ablehnen|strafe|verringern/.test(lower);
         const positive = /genehmigen|beanspruchen|erhöhen/.test(lower);
         return `<button class="action ${danger ? "danger" : positive ? "positive" : ""}" data-entity="${this._escape(entityId)}" data-label="${this._escape(name)}">${this._escape(name.replace(/^[^–-]+[–-]\s*/, ""))}</button>`;
-      }).join("");
-
+      }).join("")}</div></div>`).join("");
       return `<article class="profile">
-        <div class="profile-top">
-          <div class="avatar">${this._escape(profile.name.slice(0, 1).toUpperCase())}</div>
-          <div class="profile-title"><h3>${this._escape(profile.name)}</h3><span>${this._escape(profile.role)}</span></div>
-          <div class="profile-chip">${this._escape(tasks?.state ?? "—")}<small>Aufgaben</small></div>
-        </div>
-        <div class="stats">
-          <div class="stat"><span class="stat-icon">✦</span><strong>${this._escape(this._num(points?.state ?? "—"))}</strong><small>Punkte</small></div>
-          <div class="stat"><span class="stat-icon">⬡</span><strong>${this._escape(badge?.state ?? "—")}</strong><small>Abzeichen</small></div>
-        </div>
-        <div class="section-label">MISSIONEN</div>
-        <div class="missions">${statusHtml}</div>
-        ${actionButtons ? `<details class="actions"><summary>Missionen verwalten <span>${actions.length} Aktionen</span></summary><div class="action-list">${actionButtons}</div></details>` : ""}
+        <div class="profile-top"><div class="avatar">${this._escape(profile.name.slice(0, 1).toUpperCase())}</div><div class="profile-title"><h3>${this._escape(profile.name)}</h3><span>${this._escape(profile.role)}</span></div><div class="rank-chip">#${rankById[profile.id] || "—"}<small>RANG</small></div></div>
+        <div class="stats"><div class="stat"><span class="stat-icon">✦</span><strong>${this._escape(this._num(points?.state ?? "—"))}</strong><small>Punkte</small></div><div class="stat"><span class="stat-icon">⬡</span><strong class="badge-value">${this._escape(badgeValue)}</strong><small>Abzeichen</small></div></div>
+        <div class="score-progress"><div class="progress-caption"><span>PUNKTE-FORTSCHRITT</span><strong>${progress}%</strong></div><div class="progress-track"><span style="width:${progress}%"></span></div><div class="progress-note">Vergleich innerhalb der Familie · kein festes Belohnungsziel</div></div>
+        <div class="mission-summary"><div><strong>${statusItems.length}</strong><span>Status</span></div><div><strong>${pendingCount}</strong><span>Offen / prüfen</span></div><div><strong>${otherCount}</strong><span>Andere Status</span></div></div>
+        <div class="section-label">MISSIONEN · STATUS</div><div class="missions">${statusHtml}</div>
+        ${statusItems.length > 5 ? `<div class="more-status">+${statusItems.length - 5} weitere Statussensoren</div>` : ""}
+        ${controls ? `<details class="actions"><summary>Missionen & Punkte verwalten <span>${actions.length + pointButtons.length} Aktionen</span></summary>${controls}</details>` : ""}
       </article>`;
     }).join("");
-
     const allTasks = profiles.reduce((sum, p) => {
       const s = this._find(p, "aufgaben");
       const n = Number(s?.state);
