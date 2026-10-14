@@ -1,0 +1,25 @@
+title: ChoreOps Avengers
+views:
+  - title: Familienzentrale
+    path: familienzentrale
+    icon: mdi:shield-home
+    cards:
+      - type: custom:choreops-avengers-dashboard
+        title: AVENGERS
+        subtitle: Familienzentrale · Gemeinsame Missionen
+        profiles:
+          - id: patrick
+            name: Patrick
+            role: Teamleitung
+          - id: jenny
+            name: Jenny
+            role: Mama
+          - id: leonie
+            name: Leonie
+            role: Teammitglied
+          - id: lisa
+            name: Lisa
+            role: Teammitglied
+          - id: nele
+            name: Nele
+            role: Teammitglied
