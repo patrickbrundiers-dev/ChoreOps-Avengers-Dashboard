@@ -46,6 +46,7 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
     this._config = {
       title: "AVENGERS",
       subtitle: "Familienzentrale · Gemeinsame Missionen",
+      approver_name: "Patrick",
       profiles: DEFAULT_PROFILES,
       ...config,
     };
@@ -126,6 +127,29 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
       const badge = this._find(profile, "abzeichen");
       const localizedStatuses = this._entities(`${prefix}aufgabenstatus_`, "sensor");
       const statuses = localizedStatuses.length ? localizedStatuses : this._entities(`${prefix}chore_status_`, "sensor");
+      const statusItems = statuses.map(({ entityId, state }) => {
+        const val = String(state.state ?? "unknown");
+        const friendly = this._friendly(entityId, state);
+        const name = friendly
+          .replace(profile.name + " (ChoreOps) ", "")
+          .replace("Aufgabenstatus - ", "")
+          .replace("Aufgabenstatus: ", "")
+          .replace("ChoreOps - ", "");
+        const normalized = val.trim().toLowerCase();
+        const unavailable = /^(unknown|unavailable|none|null|n\/a|nicht verfügbar|nicht_verfügbar|—|-)$/.test(normalized);
+        const done = !unavailable && /(erledigt|abgeschlossen|completed|complete|done|fertig|genehmigt|approved|^true$|^on$|^yes$|^ja$)/i.test(normalized);
+        const pending = !unavailable && !done && /(offen|pending|ausstehend|todo|to do|in arbeit|in bearbeitung|wartet|started|^false$|^off$|^no$|^nein$)/i.test(normalized);
+        const statusType = unavailable ? "unavailable" : done ? "done" : pending ? "pending" : "other";
+        const statusLabel = unavailable ? "Nicht verfügbar" : done ? "Erledigt" : pending ? "Offen" : val;
+        return {
+          entityId,
+          attributes: state.attributes || {},
+          name: state.attributes?.chore_name || name || entityId.split(".").pop().replace(profile.id + "_choreops_", "").replaceAll("_", " "),
+          val,
+          statusType,
+          statusLabel,
+        };
+      });
       const actions = this._entities(prefix + "aufgabe_", "button").map(action => {
         const linkedStatus = statusItems.find(status => {
           const attrs = status.attributes || {};
@@ -158,31 +182,17 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         }
         return { ...action, actionKind, canRun, reason, choreName: linkedStatus?.attributes?.chore_name || "" };
       });
-      const pointButtons = this._entities(`${profile.id}_choreops_points_um_`, "button");
-      const score = Number(points?.state);
-      const statusItems = statuses.map(({ entityId, state }) => {
-        const val = String(state.state ?? "unknown");
-        const friendly = this._friendly(entityId, state);
-        const name = friendly
-          .replace(profile.name + " (ChoreOps) ", "")
-          .replace("Aufgabenstatus - ", "")
-          .replace("Aufgabenstatus: ", "")
-          .replace("ChoreOps - ", "");
-        const normalized = val.trim().toLowerCase();
-        const unavailable = /^(unknown|unavailable|none|null|n\/a|nicht verfügbar|nicht_verfügbar|—|-)$/.test(normalized);
-        const done = !unavailable && /(erledigt|abgeschlossen|completed|complete|done|fertig|genehmigt|approved|^true$|^on$|^yes$|^ja$)/i.test(normalized);
-        const pending = !unavailable && !done && /(offen|pending|ausstehend|todo|to do|in arbeit|in bearbeitung|wartet|started|^false$|^off$|^no$|^nein$)/i.test(normalized);
-        const statusType = unavailable ? "unavailable" : done ? "done" : pending ? "pending" : "other";
-        const statusLabel = unavailable ? "Nicht verfügbar" : done ? "Erledigt" : pending ? "Offen" : val;
-        return {
-          entityId,
-          attributes: state.attributes || {},
-          name: state.attributes?.chore_name || name || entityId.split(".").pop().replace(profile.id + "_choreops_", "").replaceAll("_", " "),
-          val,
-          statusType,
-          statusLabel,
-        };
+      const pointButtons = this._entities(`${profile.id}_choreops_points_um_`, "button").map(action => {
+        const label = this._friendly(action.entityId, action.state);
+        const lower = (action.entityId + " " + label).toLowerCase();
+        const match = label.match(/(-?\d+(?:[.,]\d+)?)/);
+        let amount = match ? Number(match[1].replace(",", ".")) : NaN;
+        if (/verringern|abziehen|minus|subtract|decrease|reduzieren/.test(lower)) amount = -Math.abs(amount);
+        else amount = Math.abs(amount);
+        return { ...action, actionKind: "points", amount, reason: label };
       });
+      const score = Number(points?.state);
+
       return { profile, tasks, points, badge, actions, pointButtons, statusItems, score: Number.isFinite(score) ? score : 0 };
     });
     const maxScore = Math.max(1, ...profileData.map(item => item.score));
@@ -211,7 +221,7 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         { title: "Aufgaben", items: actions },
         { title: "Punkte", items: pointButtons },
       ].filter(group => group.items.length);
-      const controls = groups.map(group => `<div class="action-group"><div class="action-group-title">${this._escape(group.title)}</div><div class="action-list">${group.items.slice(0, 12).map(({ entityId, state, actionKind, canRun, reason, choreName }) => {
+      const controls = groups.map(group => `<div class="action-group"><div class="action-group-title">${this._escape(group.title)}</div><div class="action-list">${group.items.slice(0, 12).map(({ entityId, state, actionKind, canRun, reason, choreName, amount, reason: pointReason }) => {
         const name = this._friendly(entityId, state);
         const lower = entityId.toLowerCase();
         const isPointsAction = group.title === "Punkte";
@@ -224,7 +234,7 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         const displayLabel = verb ? verb + ": " + taskLabel : safeLabel;
         const disabled = canRun === false;
         const title = disabled ? reason : (danger ? "Achtung: Diese Aktion kann eine Erledigung ablehnen." : displayLabel);
-        return `<button class="action ${danger ? "danger" : positive ? "positive" : ""} ${needsConfirm ? "confirm-action" : ""}" data-entity="${this._escape(entityId)}" data-label="${this._escape(displayLabel)}" data-confirm="${needsConfirm ? "true" : "false"}" ${disabled ? "disabled" : ""} title="${this._escape(title)}" aria-label="${this._escape((danger ? "Achtung: " : "") + displayLabel)}">${danger ? "⚠ " : isPointsAction ? "✦ " : actionKind === "claim" ? "✓ " : actionKind === "approve" ? "✔ " : ""}${this._escape(displayLabel)}${disabled ? " · derzeit nicht möglich" : ""}</button>`;
+        return `<button class="action ${danger ? "danger" : positive ? "positive" : ""} ${needsConfirm ? "confirm-action" : ""}" data-entity="${this._escape(entityId)}" data-kind="${this._escape(actionKind || "other")}" data-chore-name="${this._escape(choreName || "")}" data-user-name="${this._escape(profile.name)}" data-approver-name="${this._escape(this._config.approver_name || "Patrick")}" data-points-amount="${this._escape(isPointsAction ? String(amount ?? "") : "")}" data-point-reason="${this._escape(isPointsAction ? (pointReason || displayLabel) : "")}" data-label="${this._escape(displayLabel)}" data-confirm="${needsConfirm ? "true" : "false"}" ${disabled ? "disabled" : ""} title="${this._escape(title)}" aria-label="${this._escape((danger ? "Achtung: " : "") + displayLabel)}">${danger ? "⚠ " : isPointsAction ? "✦ " : actionKind === "claim" ? "✓ " : actionKind === "approve" ? "✔ " : ""}${this._escape(displayLabel)}${disabled ? " · derzeit nicht möglich" : ""}</button>`;
       }).join("")}</div></div>`).join("");
       return `<article class="profile">
         <div class="profile-top" style="${heroStyle}"><div class="avatar hero-avatar" title="${this._escape(hero.name)}">${hero.svg}</div><div class="profile-title"><h3>${this._escape(profile.name)}</h3><span>${this._escape(profile.role)}</span><div class="hero-title"><span class="hero-dot"></span>${this._escape(hero.name)}</div></div><div class="rank-chip">#${rankById[profile.id] || "—"}<small>RANG</small></div></div>
@@ -354,8 +364,28 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         const originalText = button.textContent;
         button.textContent = "Wird ausgeführt …";
         try {
-          const [domain] = entityId.split(".");
-          await this._hass.callService(domain, "press", { entity_id: entityId });
+          const kind = button.dataset.kind;
+          const userName = button.dataset.userName;
+          const choreName = button.dataset.choreName;
+          const approverName = button.dataset.approverName || "Patrick";
+          if (kind === "claim") {
+            if (!choreName) throw new Error("Aufgabenname fehlt im Statussensor.");
+            await this._hass.callService("choreops", "claim_chore", { user_name: userName, chore_name: choreName });
+          } else if (kind === "approve" || kind === "disapprove") {
+            if (!choreName) throw new Error("Aufgabenname fehlt im Statussensor.");
+            await this._hass.callService("choreops", kind === "approve" ? "approve_chore" : "disapprove_chore", {
+              approver_name: approverName, user_name: userName, chore_name: choreName
+            });
+          } else if (kind === "points") {
+            const amount = Number(button.dataset.pointsAmount);
+            if (!Number.isFinite(amount) || amount === 0) throw new Error("Punktebetrag konnte nicht aus dem Buttonnamen gelesen werden.");
+            await this._hass.callService("choreops", "manual_adjust_points", {
+              user_name: userName, amount, reason: button.dataset.pointReason || label, approver_name: approverName
+            });
+          } else {
+            const [domain] = entityId.split(".");
+            await this._hass.callService(domain, "press", { entity_id: entityId });
+          }
           this._showToast(`Aktion ausgelöst: ${label}`);
         } catch (err) {
           this._showToast(`Aktion fehlgeschlagen: ${err?.message || err}`);
@@ -390,8 +420,9 @@ class ChoreOpsAvengersDashboardEditor extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>div{display:grid;gap:8px;padding:8px}label{font-size:13px}input{font:inherit;padding:8px;color:var(--primary-text-color);background:var(--card-background-color);border:1px solid var(--divider-color);border-radius:6px}</style>
       <div><label>Titel <input id="title" value="${String(this._config?.title || "AVENGERS").replace(/&/g,"&amp;").replace(/"/g,"&quot;")}"></label>
-      <label>Untertitel <input id="subtitle" value="${String(this._config?.subtitle || "Familienzentrale · Gemeinsame Missionen").replace(/&/g,"&amp;").replace(/"/g,"&quot;")}"></label></div>`;
-    ["title","subtitle"].forEach(id => this.shadowRoot.getElementById(id).addEventListener("change", e => {
+      <label>Untertitel <input id="subtitle" value="${String(this._config?.subtitle || "Familienzentrale · Gemeinsame Missionen").replace(/&/g,"&amp;").replace(/"/g,"&quot;")}"></label>
+      <label>ChoreOps-Genehmiger <input id="approver_name" value="${String(this._config?.approver_name || "Patrick").replace(/&/g,"&amp;").replace(/"/g,"&quot;")}"></label></div>`;
+    ["title","subtitle","approver_name"].forEach(id => this.shadowRoot.getElementById(id).addEventListener("change", e => {
       this._config = { ...this._config, [id]: e.target.value };
       this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._config }, bubbles: true, composed: true }));
     }));
