@@ -38,6 +38,7 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
     this._hass = null;
     this._clock = null;
     this._confirmAction = null;
+    this._openActionProfiles = new Set();
   }
 
   setConfig(config) {
@@ -104,9 +105,14 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot || !this._config) return;
-    // Preserve the disclosure state when Home Assistant refreshes entity data.
-    const previousActions = this.shadowRoot.querySelector("details.actions");
-    const actionsWereOpen = previousActions ? previousActions.open : Boolean(this._actionsOpen);
+    // Preserve each profile's disclosure state across Home Assistant state refreshes.
+    const previousActions = this.shadowRoot.querySelectorAll("details.actions[data-profile-actions]");
+    if (previousActions.length) {
+      this._openActionProfiles.clear();
+      previousActions.forEach(details => {
+        if (details.open) this._openActionProfiles.add(details.dataset.profileActions);
+      });
+    }
     const profiles = (this._config.profiles || DEFAULT_PROFILES).map(p => ({
       id: String(p.id || "").toLowerCase(),
       name: p.name || p.id,
@@ -176,7 +182,7 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         <div class="mission-summary"><div><strong>${statusItems.length}</strong><span>Status</span></div><div><strong>${pendingCount}</strong><span>Offen / prüfen</span></div><div><strong>${otherCount}</strong><span>Andere Status</span></div></div>
         <div class="section-label">MISSIONEN · STATUS</div><div class="missions">${statusHtml}</div>
         ${statusItems.length > 5 ? `<div class="more-status">+${statusItems.length - 5} weitere Statussensoren</div>` : ""}
-        ${controls ? `<details class="actions"><summary>Missionen & Punkte verwalten <span>${actions.length + pointButtons.length} Aktionen</span></summary>${controls}</details>` : ""}
+        ${controls ? `<details class="actions" data-profile-actions="${this._escape(profile.id)}"><summary>Missionen & Punkte verwalten <span>${actions.length + pointButtons.length} Aktionen</span></summary>${controls}</details>` : ""}
       </article>`;
     }).join("");
     const openMissions = profiles.reduce((sum, p) => {
@@ -267,15 +273,14 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
         <footer class="footer"><span>SHIELD.NET · CHOREOPS VERBUNDEN</span><span>FAMILIENZENTRALE · v1.0.0</span></footer>
       </div>`;
 
-    const actionsDetails = this.shadowRoot.querySelector("details.actions");
-    if (actionsDetails) {
-      actionsDetails.open = actionsWereOpen;
-      actionsDetails.addEventListener("toggle", () => {
-        this._actionsOpen = actionsDetails.open;
+    this.shadowRoot.querySelectorAll("details.actions[data-profile-actions]").forEach(details => {
+      const profileId = details.dataset.profileActions;
+      details.open = this._openActionProfiles.has(profileId);
+      details.addEventListener("toggle", () => {
+        if (details.open) this._openActionProfiles.add(profileId);
+        else this._openActionProfiles.delete(profileId);
       });
-    } else {
-      this._actionsOpen = false;
-    }
+    });
 
     this.shadowRoot.querySelectorAll("button[data-entity]").forEach(button => {
       button.addEventListener("click", async () => {
