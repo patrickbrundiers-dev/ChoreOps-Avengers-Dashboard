@@ -93,8 +93,8 @@ class ChoreOpsAvengersDashboard extends HTMLElement {
       const tasks = this._find(profile, "aufgaben");
       const points = this._find(profile, "points");
       const badge = this._find(profile, "abzeichen");
-      const statuses = this._entities(`sensor.${prefix}aufgabenstatus_`, "sensor");
-      const actions = this._entities(`button.${prefix}aufgabe_`, "button");
+      const statuses = this._entities(`${prefix}aufgabenstatus_`, "sensor");
+      const actions = this._entities(`${prefix}aufgabe_`, "button");
       const visibleStatuses = statuses.slice(0, 5);
       const statusHtml = visibleStatuses.length
         ? visibleStatuses.map(({ entityId, state }) => {
